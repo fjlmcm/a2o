@@ -1,0 +1,36 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build all platforms
+        run: |
+          GOOS=windows GOARCH=amd64 go build -o a2o-windows-amd64.exe main.go
+          GOOS=darwin GOARCH=amd64 go build -o a2o-mac-amd64 main.go
+          GOOS=darwin GOARCH=arm64 go build -o a2o-mac-arm64 main.go
+          GOOS=linux GOARCH=amd64 go build -o a2o-linux-amd64 main.go
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            a2o-windows-amd64.exe
+            a2o-mac-amd64
+            a2o-mac-arm64
+            a2o-linux-amd64

@@ -1,0 +1,21 @@
+# Binaries
+*.exe
+a2o-mac-amd64
+a2o-mac-arm64
+
+# Config with sensitive data
+config.json
+
+# Stats
+usage_stats.csv
+usage_stats.csv.tmp
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+nul

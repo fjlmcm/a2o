@@ -1,5 +1,266 @@
 # a2o
 
+[English](#english) | [中文](#中文)
+
+---
+
+<a id="english"></a>
+
+**In short:** Use Claude Code, Cursor, and other Anthropic-only tools with any OpenAI-compatible API backend — third-party providers, DeepSeek, local models, and more.
+
+## What Problem Does It Solve?
+
+Many tools (Claude Code, Cursor, etc.) only speak the Anthropic API format. But you might:
+
+- Not have an official Anthropic API key
+- Want to use a cheaper third-party API provider
+- Want to use other models like DeepSeek
+- Want to use locally deployed models (via Ollama, vLLM, etc.)
+
+a2o sits in between as a translator: **your client thinks it's talking to Anthropic, but a2o translates requests to OpenAI format, sends them to your chosen backend, and translates responses back.**
+
+```
+Your tool (Claude Code, etc.)
+    ↓ Sends Anthropic-format request
+   a2o (auto-translate)
+    ↓ Forwards as OpenAI format
+Your API backend (third-party / DeepSeek / local model)
+    ↓ Returns OpenAI-format response
+   a2o (auto-translate)
+    ↓ Returns as Anthropic format
+Your tool (sees no difference)
+```
+
+## Quick Start
+
+### Step 1: Download
+
+Go to [Releases](https://github.com/fjlmcm/a2o/releases) and download the binary for your system:
+
+| OS | File |
+|----|------|
+| Windows | `a2o-windows-amd64.exe` |
+| Mac (Intel) | `a2o-mac-amd64` |
+| Mac (Apple Silicon M1/M2/M3/M4) | `a2o-mac-arm64` |
+| Linux | `a2o-linux-amd64` |
+
+On Mac/Linux, make it executable after downloading:
+
+```bash
+chmod +x a2o-mac-arm64
+```
+
+### Step 2: Create a Config File
+
+Create a `config.json` file in the same directory as a2o. Here's a minimal config:
+
+```json
+{
+  "auth_token": "my-secret-key",
+  "services": [
+    {
+      "comment": "My API",
+      "listen_address": "11001",
+      "openai_base_url": "https://your-api-host/v1/chat/completions",
+      "openai_api_key": "sk-your-api-key"
+    }
+  ]
+}
+```
+
+**What each field means:**
+
+| Field | Meaning | Required |
+|-------|---------|----------|
+| `auth_token` | Password you set for clients connecting to a2o. Leave empty to skip auth | No |
+| `comment` | A note for yourself, can be anything | No |
+| `listen_address` | Port a2o listens on. Clients connect to this port | Yes |
+| `openai_base_url` | Full URL of the upstream API, must end with `/v1/chat/completions` | Yes |
+| `openai_api_key` | API key for the upstream service | Yes |
+
+### Step 3: Start
+
+```bash
+# Windows
+a2o.exe
+
+# Mac / Linux
+./a2o-mac-arm64
+```
+
+You'll see output like this when it's running:
+
+```
+A2O Proxy Config Loaded. DebugLevel: info
+Starting Service #1 on 11001 (My API)
+```
+
+### Step 4: Configure Your Tool
+
+For **Claude Code**, set these environment variables:
+
+```bash
+# Point API URL to a2o
+export ANTHROPIC_BASE_URL=http://127.0.0.1:11001
+
+# Use the auth_token you set in config.json
+export ANTHROPIC_API_KEY=my-secret-key
+```
+
+Then start Claude Code as usual.
+
+For **Cursor** and other tools, change the Anthropic API URL to `http://127.0.0.1:11001` in settings, and use your `auth_token` value as the API key.
+
+## Examples
+
+### Example 1: Third-Party API Provider
+
+```json
+{
+  "auth_token": "abc123",
+  "services": [
+    {
+      "comment": "My Provider",
+      "listen_address": "11001",
+      "openai_base_url": "https://api.provider.com/v1/chat/completions",
+      "openai_api_key": "sk-xxxxxxxxx"
+    }
+  ]
+}
+```
+
+### Example 2: DeepSeek
+
+DeepSeek's API is OpenAI-compatible, so it works directly. a2o also automatically converts DeepSeek's "reasoning" output into Anthropic's thinking block format.
+
+```json
+{
+  "auth_token": "abc123",
+  "services": [
+    {
+      "comment": "DeepSeek",
+      "listen_address": "11001",
+      "openai_base_url": "https://api.deepseek.com/v1/chat/completions",
+      "openai_api_key": "sk-your-deepseek-key",
+      "force_model": "deepseek-chat"
+    }
+  ]
+}
+```
+
+> `force_model` overrides whatever model the client requests (e.g. claude-sonnet-4-20250514) and uses the one you specify instead.
+
+### Example 3: Multiple APIs + Load Balancing
+
+Spread usage across multiple API keys:
+
+```json
+{
+  "auth_token": "abc123",
+  "round_robin_address": "11000",
+  "services": [
+    {
+      "comment": "API Key 1",
+      "listen_address": "11001",
+      "openai_base_url": "https://api.example.com/v1/chat/completions",
+      "openai_api_key": "sk-key1"
+    },
+    {
+      "comment": "API Key 2",
+      "listen_address": "11002",
+      "openai_base_url": "https://api.example.com/v1/chat/completions",
+      "openai_api_key": "sk-key2"
+    }
+  ]
+}
+```
+
+With this setup:
+- Connect to `11001` → always uses Key 1
+- Connect to `11002` → always uses Key 2
+- Connect to `11000` → round-robin (Key 1, Key 2, Key 1, Key 2, ...)
+
+### Example 4: Using a Proxy
+
+If you need a proxy to reach your API:
+
+```json
+{
+  "services": [
+    {
+      "comment": "API behind proxy",
+      "listen_address": "11001",
+      "openai_base_url": "https://api.example.com/v1/chat/completions",
+      "openai_api_key": "sk-xxx",
+      "upstream_proxy": "socks5://127.0.0.1:7890"
+    }
+  ]
+}
+```
+
+Supports `socks5://` and `http://` proxy protocols.
+
+## Full Config Reference
+
+```json
+{
+  "debug_level": "info",
+  "timeout_seconds": 300,
+  "auth_token": "",
+  "round_robin_address": "",
+  "services": [
+    {
+      "comment": "",
+      "listen_address": "11001",
+      "openai_base_url": "https://api.example.com/v1/chat/completions",
+      "openai_api_key": "sk-xxx",
+      "upstream_proxy": "",
+      "force_model": ""
+    }
+  ]
+}
+```
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `debug_level` | Log level. `info` for key events only, `debug` for verbose logging | `info` |
+| `timeout_seconds` | Request timeout in seconds. Connection drops if the model responds too slowly | `300` |
+| `auth_token` | Key clients must provide to connect to a2o. Leave empty to disable auth | empty |
+| `round_robin_address` | Load balancing port. Leave empty to disable | empty |
+| `force_model` | Override model name. Leave empty to use whatever the client requests | empty |
+| `upstream_proxy` | Proxy for upstream API requests. Leave empty for direct connection | empty |
+
+## Usage Stats
+
+a2o automatically logs token usage to `usage_stats.csv` in its directory, grouped by date, service, and model. Open it with Excel or any spreadsheet app.
+
+## Build from Source
+
+Requires Go 1.22+:
+
+```bash
+go build -o a2o.exe main.go      # Windows
+go build -o a2o main.go           # Mac / Linux
+```
+
+## Features
+
+- Normal and streaming responses
+- Tool calls (function calling / tool use)
+- Image input (base64 and URL)
+- DeepSeek reasoning → Anthropic thinking blocks
+- Auto-retry (up to 3 retries on network errors or dead streams)
+- Connection pooling for performance
+- Zero dependencies, single file
+
+## License
+
+MIT License
+
+---
+
+<a id="中文"></a>
+
 **一句话说明：** 让你的 Claude Code、Cursor 等工具，通过任意 OpenAI 兼容的 API（比如国内中转站、DeepSeek、本地模型等）来用，不用直接连 Anthropic。
 
 ## 它解决什么问题？
@@ -250,3 +511,5 @@ go build -o a2o main.go           # Mac / Linux
 ## License
 
 MIT License
+
+[Back to English](#english)

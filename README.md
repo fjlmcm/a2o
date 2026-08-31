@@ -1,3 +1,5 @@
+
+
 # a2o
 
 [English](#english) | [中文](#中文)
@@ -87,6 +89,8 @@ a2o.exe
 # Mac / Linux
 ./a2o-mac-arm64
 ```
+
+If your `config.json` is not in the current directory, pass its location with `-config <config-file-path>`.
 
 You'll see output like this when it's running:
 
